@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BusTime - Horários em Tempo Real</title>
+    
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1d4ed8"/>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .app-gradient {
+            background: linear-gradient(180deg, #e0e7ff 0%, #f0f2f5 100%);
+        }
+
+        /* Cores Personalizadas para as Caixas de Destaque */
+        .bg-custom-green {
+            background-color: #b8e2cf; /* Cor de fundo da Próxima Partida */
+        }
+        .text-custom-green {
+            color: #208964; /* Cor do texto da Próxima Partida */
+        }
+        .border-custom-green {
+            border-color: #208964; /* Cor da borda da Próxima Partida */
+        }
+
+        .bg-custom-red {
+            background-color: #e3cbcb; /* Cor de fundo da Última Partida */
+        }
+        .text-custom-red {
+            color: #c02828; /* Cor do texto da Última Partida */
+        }
+        .border-custom-red {
+            border-color: #c02828; /* Cor da borda da Última Partida */
+        }
+        
+        /* Estilo da célula padrão da grade */
+        .schedule-time-static {
+            background-color: #f3f4f6;
+            padding: 0.5rem;
+            text-align: center;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4b5563;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Destaque do próximo horário na grade - CHAVE para o visual em tempo real */
+        .schedule-time-highlight {
+            background-color: #2c6350 !important; /* Cor de destaque */
+            color: white !important;
+            font-weight: 700 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            transform: scale(1.05);
+        }
+
+        /* NOVO: Estilo para o botão de instalação */
+        #install-button {
+            display: none; /* Inicia oculto, será exibido pelo JS */
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 40;
+            padding: 12px 20px;
+            background-color: #1d4ed8;
+            color: white;
+            font-weight: 600;
+            border-radius: 9999px;
+            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.4);
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="app-gradient min-h-screen">
+
+    <div id="app-container" class="max-w-md mx-auto bg-white min-h-screen shadow-2xl">
+
+        <header class="top-0 z-10 bg-white pt-10 pb-4 px-4 shadow-sm">
+            
+            <div class="mt-0 text-center">
+                <h1 class="text-3xl font-extrabold text-[#1d4ed8]">BusTime</h1>
+                <p class="text-sm text-gray-500 mt-1">Consulte as partidas de ônibus da sua linha.</p>
+            </div>
+        </header>
+
+        <main class="p-4 space-y-4">
+
+            <div id="selection-cards" class="space-y-4">
+                
+                <div id="card-line" data-type="line" class="selection-card bg-white p-4 rounded-xl shadow-md transition duration-200 ease-in-out transform hover:shadow-lg cursor-pointer active:scale-[0.99]">
+                    <p class="text-xs text-gray-500">Linha</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <p id="selected-line" class="text-sm font-semibold text-gray-700 line-clamp-1">Carregando Linha...</p>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div id="card-direction" data-type="direction" class="selection-card bg-white p-4 rounded-xl shadow-md transition duration-200 ease-in-out transform hover:shadow-lg cursor-pointer active:scale-[0.99]">
+                    <p class="text-xs text-gray-500">Sentido</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <p id="selected-direction" class="text-sm font-semibold text-gray-700 line-clamp-1">Carregando Sentido...</p>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div id="card-day" data-type="day" class="selection-card bg-white p-4 rounded-xl shadow-md transition duration-200 ease-in-out transform hover:shadow-lg cursor-pointer active:scale-[0.99]">
+                    <p class="text-xs text-gray-500">Dia da Semana</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <p id="selected-day" class="text-sm font-semibold text-gray-700 line-clamp-1">Carregando Dia...</p>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+
+            </div>
+            
+            <h2 class="text-lg font-semibold text-gray-800 pt-4">SAÍDAS</h2>
+            
+            <div class="flex justify-between space-x-4">
+                
+                <div class="flex-1 bg-custom-red p-4 rounded-xl shadow-lg border-b-4 border-custom-red text-center">
+                    <p class="text-sm font-medium text-custom-red">Última Partida</p>
+                    <p id="last-departure-time" class="text-4xl font-bold text-custom-red mt-1">--:--</p>
+                </div>
+                
+                <div class="flex-1 bg-custom-green p-4 rounded-xl shadow-lg border-b-4 border-custom-green text-center">
+                    <p class="text-sm font-medium text-custom-green">Próxima Partida</p>
+                    <p id="next-departure-time" class="text-4xl font-bold text-custom-green mt-1">--:--</p>
+                    <p id="time-remaining" class="text-xs text-custom-green mt-1">Aguardando...</p>
+                </div>
+            </div>
+            <p id="current-simulated-time" class="text-center text-xs text-gray-500 mt-2">Horário atual: **--:--**</p>
+            
+            <h2 class="text-lg font-semibold text-gray-800 pt-4" id="schedule-title">HORÁRIOS (SEGUNDA A SEXTA)</h2>
+            <div id="schedule-grid" class="grid grid-cols-4 gap-3 py-2">
+                </div>
+            <p id="no-schedule-message" class="text-center text-gray-500 hidden pt-4">Nenhum horário encontrado para a seleção atual.</p>
+
+
+        </main>
+        
+        <div id="notification-toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none">
+            Opção selecionada com sucesso!
+        </div>
+
+    </div>
+
+    <div id="modal-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-20 hidden transition-opacity duration-300" onclick="closeModal()"></div>
+    
+    <div id="modal" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-30 transform translate-y-full transition-transform duration-300">
+        <div class="p-6">
+            <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-4">Selecione uma Opção</h3>
+            <div id="modal-content" class="max-h-80 overflow-y-auto space-y-2">
+                </div>
+        </div>
+    </div>
+
+    <button id="install-button">Instalar App BusTime</button>
+
+    <script>
+        // Variáveis globais para o estado do app
+        const state = {
+            line: "6000-10", // <-- CORREÇÃO: Linha 6000-10 definida como principal
+            direction: "IDA",
+            day: "SEGUNDA A SEXTA", 
+            nextDepartureTimeMs: null, // Timestamp (ms) do próximo ônibus
+            nextDepartureTimeStr: null // String (HH:mm) do próximo ônibus
+        };
+
+        /*
+         * ESTRUTURA DE DADOS COMPLETA
+         * (Seus dados foram mantidos e são válidos)
+         */
+        const schedules = {
+            "6000-10": {
+                name: "6000-10 - TERM PARELHEIROS/TERM STO AMARO",
+                directions: {
+                    "IDA": "IDA TERMINAL STO AMARO", 
+                    "VOLTA": "VOLTA TERMINAL PARELHEIROS" 
+                },
+                IDA: {
+                    "SEGUNDA A SEXTA": ["03:30", "03:36", "03:42", "03:48", "03:54", "04:00", "04:04", "04:08", "04:12", "04:16", "04:20", "04:24", "04:28", "04:32", "04:36", "04:40", "04:44", "04:48", "04:52", "04:56", "05:00", "05:04", "05:08", "05:12", "05:16", "05:20", "05:24", "05:28", "05:31", "05:34", "05:37", "05:40", "05:43", "05:46", "05:49", "05:52", "05:55", "05:58", "06:01", "06:04", "06:06", "06:08", "06:10", "06:12", "06:14", "06:16", "06:18", "06:21", "06:24", "06:27", "06:30", "06:33", "06:36", "06:39", "06:42", "06:45", "06:48", "06:51", "06:54", "06:58", "07:02", "07:06", "07:10", "07:14", "07:18", "07:22", "07:26", "07:30", "07:34", "07:38", "07:42", "07:46", "07:50", "07:54", "07:58", "08:02", "08:06", "08:10", "08:14", "08:18", "08:23", "08:28", "08:33", "08:38", "08:43", "08:48", "08:53", "08:58", "09:04", "09:10", "09:16", "09:22", "09:28", "09:34", "09:40", "09:46", "09:52", "09:58", "10:04", "10:10", "10:16", "10:22", "10:28", "10:34", "10:40", "10:46", "10:52", "10:58", "11:04", "11:10", "11:16", "11:22", "11:28", "11:33", "11:38", "11:43", "11:48", "11:53", "11:58", "12:03", "12:08", "12:13", "12:18", "12:23", "12:28", "12:33", "12:38", "12:43", "12:48", "12:53", "12:58", "13:03", "13:08", "13:13", "13:18", "13:23", "13:28", "13:33", "13:38", "13:43", "13:48", "13:53", "13:58", "14:03", "14:08", "14:13", "14:18", "14:23", "14:28", "14:33", "14:38", "14:43", "14:48", "14:52", "14:58", "15:03", "15:08", "15:13", "15:18", "15:23", "15:28", "15:33", "15:38", "15:43", "15:48", "15:52", "15:56", "16:00", "16:04", "16:08", "16:13", "16:18", "16:23", "16:27", "16:31", "16:35", "16:39", "16:43", "16:48", "16:53", "16:58", "17:03", "17:08", "17:13", "17:18", "17:23", "17:28", "17:33", "17:38", "17:43", "17:48", "17:53", "17:58", "18:03", "18:08", "18:13", "18:18", "18:23", "18:28", "18:33", "18:38", "18:43", "18:48", "18:53", "18:58", "19:03", "19:08", "19:13", "19:18", "19:23", "19:28", "19:33", "19:38", "19:43", "19:48", "19:53", "19:58", "20:03", "20:08", "20:13", "20:18", "20:23", "20:28", "20:33", "20:38", "20:43", "20:48", "20:53", "20:58", "21:03", "21:08", "21:13", "21:18", "21:23", "21:28", "21:33", "21:38", "21:43", "21:48", "21:53", "21:58", "22:03", "22:10", "22:20", "22:30", "22:40", "22:55", "23:15", "23:35", "23:55", "00:20", "00:55",],
+                    "SÁBADO": ["03:30", "04:00", "04:15", "04:30", "04:45", "05:00", "05:10", "05:20", "05:30", "05:40", "05:50", "06:00", "06:08", "06:16", "06:24", "06:32", "06:41", "06:50", "07:00", "07:10", "07:20", "07:31", "07:43", "07:55", "08:07", "08:19", "08:31", "08:43", "08:55", "09:07", "09:19", "09:31", "09:43", "09:55", "10:08", "10:21", "10:34", "10:47", "11:00", "11:13", "11:26", "11:39", "11:52", "12:05", "12:18", "12:31", "12:43", "12:55", "13:05", "13:15", "13:25", "13:35", "13:45", "13:55", "14:07", "14:19", "14:31", "14:43", "14:55", "15:05", "15:15", "15:25", "15:35", "15:45", "15:55", "16:05", "16:15", "16:25", "16:35", "16:45", "16:55", "17:07", "17:19", "17:31", "17:43", "17:55", "18:05", "18:20", "18:35", "18:50", "19:05", "19:20", "19:35", "19:50", "20:05", "20:20", "20:35", "20:50", "21:05", "21:20", "21:40", "22:00", "22:25", "22:50", "23:15", "23:40", "00:10", "00:45",],
+                    "DOMINGO": ["03:30", "04:00", "04:20", "04:40", "05:00", "05:15", "05:30", "05:45", "06:00", "06:12", "06:24", "06:36", "06:48", "07:00", "07:10", "07:20", "07:30", "07:40", "07:50", "08:03", "08:16", "08:29", "08:42", "08:55", "09:15", "09:35", "09:55", "10:15", "10:35", "10:55", "11:10", "11:25", "11:40", "11:55", "12:10", "12:25", "12:40", "12:55", "13:07", "13:19", "13:31", "13:43", "13:55", "14:10", "14:25", "14:40", "14:55", "15:07", "15:19", "15:31", "15:43", "15:55", "16:07", "16:19", "16:31", "16:43", "16:55", "17:10", "17:25", "17:40", "17:55", "18:10", "18:25", "18:40", "18:55", "19:15", "19:35", "19:55", "20:15", "20:35", "20:55", "21:15", "21:35", "21:55", "22:20", "22:50", "23:20", "23:50", "00:20", "00:50",]
+                },
+                VOLTA: {
+                    "SEGUNDA A SEXTA": ["04:20", "04:35", "04:45", "04:53", "05:01", "05:06", "05:12", "05:18", "05:23", "05:28", "05:33", "05:38", "05:42", "05:46", "05:50", "05:54", "05:58", "06:02", "06:06", "06:10", "06:14", "06:18", "06:22", "06:26", "06:30", "06:34", "06:38", "06:42", "06:46", "06:50", "06:54", "06:58", "07:02", "07:06", "07:10", "07:14", "07:18", "07:22", "07:26", "07:30", "07:34", "07:38", "07:42", "07:46", "07:50", "07:54", "07:58", "08:02", "08:06", "08:10", "08:14", "08:19", "08:24", "08:30", "08:36", "08:42", "08:48", "08:53", "08:58", "09:03", "09:08", "09:13", "09:18", "09:23", "09:28", "09:33", "09:38", "09:43", "09:48", "09:53", "09:58", "10:04", "10:10", "10:16", "10:22", "10:28", "10:34", "10:40", "10:46", "10:52", "10:58", "11:03", "11:08", "11:13", "11:19", "11:25", "11:31", "11:37", "11:43", "11:49", "11:55", "12:01", "12:06", "12:11", "12:16", "12:22", "12:28", "12:33", "12:38", "12:43", "12:48", "12:53", "12:58", "13:03", "13:08", "13:13", "13:18", "13:22", "13:28", "13:33", "13:38", "13:43", "13:48", "13:53", "13:58", "14:03", "14:08", "14:13", "14:18", "14:23", "14:28", "14:33", "14:38", "14:43", "14:48", "14:53", "14:58", "15:02", "15:06", "15:10", "15:14", "15:18", "15:23", "15:28", "15:33", "15:38", "15:43", "15:48", "15:52", "15:56", "16:00", "16:04", "16:08", "16:13", "16:18", "16:23", "16:27", "16:31", "16:35", "16:39", "16:43", "16:48", "16:53", "16:58", "17:03", "17:08", "17:13", "17:18", "17:23", "17:28", "17:33", "17:38", "17:43", "17:48", "17:53", "17:58", "18:03", "18:08", "18:13", "18:18", "18:23", "18:28", "18:33", "18:38", "18:43", "18:48", "18:53", "18:58", "19:03", "19:08", "19:13", "19:18", "19:23", "19:28", "19:33", "19:38", "19:43", "19:48", "19:53", "19:58", "20:03", "20:08", "20:13", "20:18", "20:23", "20:28", "20:33", "20:38", "20:43", "20:48", "20:53", "20:58", "21:03", "21:08", "21:13", "21:18", "21:23", "21:28", "21:33", "21:38", "21:43", "21:48", "21:53", "21:58", "22:03", "22:08", "22:12", "22:16", "22:20", "22:24", "22:28", "22:32", "22:36", "22:40", "22:45", "22:50", "22:55", "23:00", "23:06", "23:13", "23:20", "23:27", "23:34", "23:41", "23:48", "23:55", "00:10", "00:25", "00:40", "00:55", "01:20", "01:55",],
+                    "SÁBADO": ["04:25", "05:00", "05:20", "05:40", "05:55", "06:10", "06:22", "06:34", "06:45", "06:56", "07:07", "07:17", "07:27", "07:37", "07:46", "07:55", "08:04", "08:13", "08:22", "08:32", "08:43", "08:55", "09:07", "09:19", "09:31", "09:43", "09:55", "10:07", "10:19", "10:31", "10:43", "10:55", "11:10", "11:25", "11:40", "11:55", "12:08", "12:21", "12:34", "12:47", "13:00", "13:12", "13:24", "13:36", "13:48", "14:00", "14:10", "14:20", "14:30", "14:40", "14:50", "15:00", "15:12", "15:24", "15:36", "15:48", "16:00", "16:10", "16:20", "16:30", "16:40", "16:50", "17:00", "17:10", "17:20", "17:30", "17:40", "17:50", "18:00", "18:11", "18:22", "18:33", "18:44", "18:55", "19:07", "19:19", "19:31", "19:43", "19:55", "20:10", "20:25", "20:40", "20:55", "21:10", "21:25", "21:40", "21:55", "22:10", "22:25", "22:40", "22:55", "23:15", "23:35", "23:55", "00:15", "00:40", "01:05", "01:35",],
+                    "DOMINGO": ["05:25", "05:50", "06:10", "06:30", "06:50", "07:10", "07:30", "07:45", "08:00", "08:12", "08:24", "08:36", "08:48", "09:00", "09:10", "09:20", "09:30", "09:40", "09:50", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:50", "12:10", "12:30", "12:50", "13:10", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:12", "16:24", "16:36", "16:48", "17:00", "17:12", "17:24", "17:36", "17:48", "18:00", "18:10", "18:20", "18:30", "18:40", "18:50", "19:00", "19:15", "19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:05", "22:25", "22:45", "23:05", "23:25", "23:45", "00:05", "00:30", "00:55", "01:20", "01:50", "02:15",]
+                }
+            },
+            "6L01-10": {
+                name: "6L01-10 - MARSILAC/TERM VARGINHA",
+                directions: {
+                    "IDA": "IDA TERMINAL VARGINHA",
+                    "VOLTA": "VOLTA MARSILAC"
+                },
+                IDA: {
+                    "SEGUNDA A SEXTA": ["04:00", "04:20", "04:40", "05:00", "05:20", "05:40", "06:00", "06:20", "06:45", "07:10", "07:30", "07:55", "08:15", "08:35", "08:55", "09:15", "09:35", "09:55", "10:15", "10:35", "10:55", "11:15", "11:35", "11:55", "12:15", "12:35", "12:55", "13:15", "13:35", "13:55", "14:15", "14:35", "14:50", "15:10", "15:30", "15:50", "16:15", "16:35", "16:55", "17:15", "17:35", "17:55", "18:15", "18:35", "18:55", "19:20", "19:35", "19:55", "20:15", "20:35", "20:55", "21:15", "21:35", "21:55", "22:25", "22:55", "23:25", "23:55", "00:30",],
+                    "SÁBADO": ["04:00", "04:25", "04:50", "05:10", "05:30", "05:50", "06:10", "06:30", "06:50", "07:10", "07:30", "07:50", "08:10", "08:40", "09:10", "09:30", "09:50", "10:10", "10:40", "11:10", "11:40", "12:10", "12:40", "13:10", "13:40", "14:10", "14:40", "15:10", "15:40", "16:10", "16:40", "17:10", "17:40", "18:10", "18:40", "19:10", "19:40", "20:10", "20:40", "21:15", "21:50", "22:20", "22:55", "23:35", "00:30",],
+                    "DOMINGO": ["04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:45", "00:30",]
+                },
+                VOLTA: {
+                    "SEGUNDA A SEXTA": ["05:00", "05:20", "05:40", "06:05", "06:25", "06:45", "07:10", "07:30", "07:55", "08:15", "08:35", "09:00", "09:20", "09:40", "10:00", "10:20", "10:40", "11:00", "11:20", "11:40", "12:00", "12:20", "12:40", "13:00", "13:20", "13:40", "14:00", "14:20", "14:40", "15:00", "15:20", "15:40", "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:35", "17:50", "18:05", "18:25", "18:45", "19:05", "19:25", "19:45", "20:05", "20:25", "20:45", "20:55", "21:10", "21:30", "21:50", "22:10", "22:30", "22:50", "23:20", "23:55", "00:50", "01:45",],
+                    "SÁBADO": ["05:00", "05:35", "05:50", "06:05", "06:25", "06:45", "07:10", "07:30", "07:50", "08:10", "08:30", "08:50", "09:10", "09:40", "10:10", "10:25", "10:50", "11:10", "11:40", "12:15", "12:45", "13:15", "13:45", "14:15", "14:45", "15:15", "15:45", "16:15", "16:45", "17:15", "17:35", "17:55", "18:15", "18:35", "18:55", "19:15", "19:40", "20:05", "20:35", "21:00", "21:30", "22:05", "22:40", "23:15", "23:55", "00:50", "01:45",],
+                    "DOMINGO": ["05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:05", "10:35", "11:05", "11:35", "12:05", "12:35", "13:05", "13:35", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:05", "17:35", "18:05", "18:35", "19:05", "19:35", "20:00", "20:30", "21:00", "21:30", "21:55", "22:25", "22:55", "23:25", "23:55", "00:45", "01:40",]
+                }
+            },
+            "6L02-10": {
+                name: "6L02-10 - JD. EUCALIPTOS/TERM PARELHEIROS",
+                directions: {
+                    "IDA": "IDA TERMINAL PARELHEIROS",
+                    "VOLTA": "VOLTA JD. EUCALIPTOS"
+                },
+                IDA: {
+                    "SEGUNDA A SEXTA": ["05:00", "05:50", "06:50", "07:50", "08:55", "10:05", "11:15", "12:15", "14:00", "15:25", "16:30", "17:35", "18:40", "19:50", "21:00", "22:05", "23:00",],
+                    "SÁBADO": ["05:30", "07:00", "08:30", "10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30", "22:00",],
+                    "DOMINGO": ["06:00", "07:40", "09:20", "11:00", "12:40", "14:40", "16:20", "18:00", "19:40", "21:20",]
+                },
+                VOLTA: {
+                    "SEGUNDA A SEXTA": ["05:50", "06:40", "07:40", "08:40", "09:45", "10:55", "12:05", "13:05", "14:50", "16:15", "17:20", "18:25", "19:25", "20:35", "21:45", "22:50", "23:45",],
+                    "SÁBADO": ["06:15", "07:45", "09:15", "10:40", "12:15", "13:45", "15:15", "16:45", "18:15", "19:45", "21:15", "22:45",],
+                    "DOMINGO": ["06:45", "08:25", "10:05", "11:45", "13:25", "15:25", "17:05", "18:45", "20:25", "22:05",]
+                }
+            },
+            "6L03-10": {
+                name: "6L03-10 - CIPÓ DO MEIO/TERM PARELHEIROS",
+                directions: {
+                    "IDA": "IDA TERMINAL PARELHEIROS",
+                    "VOLTA": "VOLTA CIPÓ DO MEIO"
+                },
+                IDA: {
+                    "SEGUNDA A SEXTA": ["03:50", "04:30", "05:10", "05:50", "06:30", "07:10", "07:50", "08:30", "09:10", "09:55", "10:40", "11:30", "12:20", "13:10", "14:00", "14:50", "15:40", "16:30", "17:15", "18:00", "18:40", "19:20", "20:05", "20:50", "21:40", "22:20", "23:00", "23:30",],
+                    "SÁBADO": ["04:30", "05:30", "06:30", "07:30", "08:30", "09:30", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:30", "17:30", "18:30", "19:30", "20:30", "21:30", "22:30", "23:30",],
+                    "DOMINGO": ["04:30", "05:30", "06:30", "07:30", "08:30", "09:30", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:30", "17:30", "18:30", "19:30", "20:30", "21:30", "22:30", "23:30",]
+                },
+                VOLTA: {
+                    "SEGUNDA A SEXTA": ["04:35", "05:15", "06:00", "06:40", "07:20", "08:00", "08:40", "09:20", "10:00", "10:45", "11:30", "12:20", "13:10", "14:00", "14:50", "15:40", "16:30", "17:25", "18:10", "19:00", "19:45", "20:25", "21:05", "21:45", "22:25", "23:05", "23:45", "00:20",],
+                    "SÁBADO": ["05:10", "06:10", "07:10", "08:10", "09:10", "10:10", "11:15", "12:15", "13:15", "14:15", "15:15", "16:15", "17:15", "18:15", "19:15", "20:15", "21:15", "22:15", "23:15", "00:20",],
+                    "DOMINGO": ["05:10", "06:10", "07:10", "08:10", "09:10", "10:10", "11:15", "12:15", "13:15", "14:15", "15:15", "16:15", "17:15", "18:15", "19:15", "20:15", "21:15", "22:15", "23:15", "00:20",]
+                }
+            },
+            "695Y-10": {
+                name: "695Y-10 - TERM PARELHEIROS/METRÔ VL. MARIANA",
+                directions: {
+                    "IDA": "IDA METRO VL. MARIANA",
+                    "VOLTA": "VOLTA TERMINAL PARELHEIROS"
+                },
+                IDA: {
+                    "SEGUNDA A SEXTA": ["04:00", "04:10", "04:20", "04:34", "04:44", "04:54", "05:04", "05:14", "05:24", "05:33", "05:41", "05:48", "05:56", "06:04", "06:12", "06:20", "06:28", "06:36", "06:44", "06:52", "07:00", "07:10", "07:20", "07:30", "07:40", "07:50", "08:10", "08:32", "08:56", "09:18", "09:38", "09:54", "10:10", "10:30", "10:50", "11:10", "11:28", "11:48", "12:08", "12:28", "12:48", "13:03", "13:18", "13:33", "13:48", "14:00", "14:12", "14:26", "14:38", "14:50", "15:04", "15:18", "15:32", "15:48", "16:00", "16:10", "16:20", "16:30", "16:40", "16:51", "17:07", "17:23", "17:38", "17:55", "18:15", "18:35", "18:55", "19:13", "19:33", "19:55", "20:20", "20:48", "21:10", "21:30", "21:54", "22:19", "22:49", "23:21", "23:55",],
+                    "SÁBADO": ["04:00", "04:20", "04:40", "05:00", "05:12", "05:24", "05:36", "05:50", "06:02", "06:14", "06:26", "06:38", "06:50", "07:10", "07:30", "07:50", "08:10", "08:30", "08:50", "09:10", "09:30", "09:50", "10:10", "10:30", "10:50", "11:10", "11:30", "11:50", "12:10", "12:30", "12:50", "13:10", "13:30", "13:50", "14:05", "14:20", "14:35", "14:50", "15:10", "15:30", "15:52", "16:04", "16:16", "16:34", "16:56", "17:20", "17:40", "17:56", "18:16", "18:38", "18:56", "19:16", "19:36", "19:56", "20:20", "20:50", "21:18", "21:48", "22:18", "22:48", "23:14", "23:44", "00:15",],
+                    "DOMINGO": ["04:10", "04:50", "05:05", "05:20", "05:40", "06:00", "06:20", "06:40", "07:00", "07:20", "07:40", "08:10", "08:38", "09:00", "09:24", "09:43", "10:08", "10:30", "10:54", "11:20", "11:46", "12:10", "12:30", "12:50", "13:10", "13:30", "13:50", "14:10", "14:30", "14:50", "15:10", "15:30", "15:50", "16:10", "16:30", "16:56", "17:22", "17:48", "18:14", "18:34", "18:54", "19:14", "19:34", "19:54", "20:14", "20:34", "20:54", "21:18", "21:42", "22:08", "22:34", "23:00",]
+                },
+                VOLTA: {
+                    "SEGUNDA A SEXTA": ["05:25", "05:51", "06:05", "06:26", "06:48", "07:00", "07:08", "07:19", "07:33", "07:46", "07:56", "08:11", "08:19", "08:31", "08:42", "08:53", "09:01", "09:09", "09:17", "09:25", "09:33", "09:41", "09:49", "09:57", "10:09", "10:19", "10:33", "10:48", "11:06", "11:30", "11:50", "12:03", "12:20", "12:42", "13:03", "13:24", "13:45", "14:07", "14:23", "14:42", "15:00", "15:17", "15:31", "15:44", "16:00", "16:12", "16:27", "16:40", "16:51", "17:00", "17:14", "17:36", "17:55", "18:08", "18:19", "18:30", "18:40", "18:49", "19:00", "19:12", "19:25", "19:38", "19:50", "20:04", "20:18", "20:36", "20:56", "21:10", "21:25", "21:45", "22:06", "22:27", "22:50", "23:14", "23:34", "23:55", "00:22", "00:47", "01:10",],
+                    "SÁBADO": ["05:25", "05:54", "06:19", "06:44", "07:00", "07:15", "07:30", "07:46", "08:00", "08:12", "08:23", "08:40", "08:53", "09:15", "09:33", "09:53", "10:12", "10:35", "10:55", "11:16", "11:38", "12:00", "12:18", "12:37", "13:01", "13:22", "13:42", "14:01", "14:20", "14:40", "15:01", "15:20", "15:41", "15:55", "16:07", "16:22", "16:39", "16:54", "17:09", "17:29", "17:53", "18:16", "18:34", "18:53", "19:14", "19:34", "19:56", "20:09", "20:27", "20:43", "20:56", "21:12", "21:33", "21:51", "22:10", "22:38", "23:04", "23:30", "23:47", "00:17", "00:40", "01:09", "01:35",],
+                    "DOMINGO": ["05:40", "06:30", "06:45", "06:55", "07:18", "07:40", "08:03", "08:25", "08:45", "09:05", "09:27", "09:55", "10:25", "10:55", "11:18", "11:36", "11:59", "12:25", "12:53", "13:18", "13:42", "14:04", "14:22", "14:42", "15:00", "15:20", "15:38", "15:57", "16:15", "16:35", "16:55", "17:16", "17:38", "18:00", "18:21", "18:50", "19:18", "19:46", "20:10", "20:26", "20:42", "20:59", "21:19", "21:39", "21:57", "22:14", "22:30", "22:52", "23:13", "23:38", "00:04", "00:40",]
+                }
+            }
+        };
+
+        const data = {
+            lines: Object.keys(schedules).map(key => ({ 
+                id: key, 
+                text: schedules[key] ? schedules[key].name : key 
+            })),
+            days: ["SEGUNDA A SEXTA", "SÁBADO", "DOMINGO"],
+
+            // Função para obter os horários atuais com base no estado
+            getSchedule() {
+                const lineSchedule = schedules[state.line];
+                if (!lineSchedule) return [];
+                
+                const directionSchedule = lineSchedule[state.direction];
+                if (!directionSchedule) return [];
+                
+                return directionSchedule[state.day] || [];
+            }
+        };
+
+
+        const elements = {
+            modal: document.getElementById('modal'),
+            overlay: document.getElementById('modal-overlay'),
+            modalTitle: document.getElementById('modal-title'),
+            modalContent: document.getElementById('modal-content'),
+            selectedLine: document.getElementById('selected-line'),
+            selectedDirection: document.getElementById('selected-direction'),
+            selectedDay: document.getElementById('selected-day'),
+            scheduleGrid: document.getElementById('schedule-grid'),
+            scheduleTitle: document.getElementById('schedule-title'),
+            lastDepartureTime: document.getElementById('last-departure-time'),
+            nextDepartureTime: document.getElementById('next-departure-time'),
+            timeRemaining: document.getElementById('time-remaining'),
+            notificationToast: document.getElementById('notification-toast'),
+            noScheduleMessage: document.getElementById('no-schedule-message')
+        };
+        
+        let currentModalType = '';
+        
+        // NOVO: VARIÁVEL PARA O PROMPT DE INSTALAÇÃO
+        let deferredPrompt;
+
+
+        // --- Funções de Utilitário (Hora Real) ---
+
+        // Define o dia da semana inicial com base no horário real
+        function setInitialDay() {
+            const now = new Date();
+            const dayIndex = now.getDay(); // 0=Domingo, 1=Segunda, ..., 6=Sábado
+
+            if (dayIndex === 0) {
+                state.day = "DOMINGO";
+            } else if (dayIndex === 6) {
+                state.day = "SÁBADO";
+            } else {
+                state.day = "SEGUNDA A SEXTA";
+            }
+        }
+        
+        // Função para formatar o tempo restante
+        function formatTimeDiff(totalSeconds) {
+            if (totalSeconds <= 0) return "Agora/Partiu!";
+            
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            const hDisplay = hours > 0 ? `${hours}h ` : "";
+            const mDisplay = minutes.toString().padStart(2, '0');
+            const sDisplay = seconds.toString().padStart(2, '0');
+            
+            return `Em ${hDisplay}${mDisplay}m ${sDisplay}s`;
+        }
+        
+        /**
+         * Função responsável por destacar o próximo horário e, opcionalmente, rolar a página.
+         * @param {boolean} doScroll - Se true, rola a página para o horário destacado.
+         */
+        function highlightNextDeparture(doScroll) {
+            // Remove destaques anteriores
+            document.querySelectorAll('.schedule-time-highlight').forEach(el => {
+                el.classList.remove('schedule-time-highlight');
+            });
+            
+            if (state.nextDepartureTimeStr) {
+                const nextEl = document.querySelector(`.schedule-time-static[data-time="${state.nextDepartureTimeStr}"]`);
+                if (nextEl) {
+                    nextEl.classList.add('schedule-time-highlight');
+                    
+                    if (doScroll) {
+                        // Rola o elemento para o centro da tela
+                        nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+        }
+        
+        /**
+         * ATUALIZAÇÃO EM TEMPO REAL (a cada 1 segundo):
+         * - Atualiza o relógio no topo (Horário atual).
+         * - Atualiza a contagem regressiva.
+         * - RECALCULA a próxima partida se a anterior já tiver passado.
+         */
+        function updateTimeRemainingDisplay() {
+            const now = new Date();
+            const nowMs = now.getTime();
+            
+            // 1. Atualiza o display do tempo real atual
+            const nowFormatted = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit'});
+            document.getElementById('current-simulated-time').innerHTML = `Horário atual: <strong>${nowFormatted}</strong>`; 
+
+            // 2. Calcula e exibe o tempo restante
+            if (state.nextDepartureTimeMs) {
+                const diffMs = state.nextDepartureTimeMs - nowMs;
+                const totalSeconds = Math.floor(diffMs / 1000);
+
+                if (totalSeconds > 0) {
+                    elements.timeRemaining.textContent = formatTimeDiff(totalSeconds);
+                    highlightNextDeparture(false); // Mantém o destaque
+                } else {
+                    elements.timeRemaining.textContent = "Partindo agora!";
+                    
+                    // Se o tempo passou por uma margem (ex: 30s), dispara o recálculo
+                    if (totalSeconds <= -30) { 
+                        // Recalcula para o novo próximo e força a rolagem (true)
+                        calculateDepartures(true); 
+                    } else {
+                         highlightNextDeparture(false); // Mantém o destaque no horário que acabou de partir
+                    }
+                }
+            } else {
+                 elements.timeRemaining.textContent = "Partidas encerradas";
+                 highlightNextDeparture(false);
+            }
+        }
+
+
+        /**
+         * Lógica PRINCIPAL para cálculo da próxima/última partida,
+         * tratando a virada de dia (madrugada) para um funcionamento correto.
+         */
+        function calculateDepartures(doScroll = false) {
+            const currentSchedule = data.getSchedule();
+            const now = new Date();
+            const nowMs = now.getTime();
+            
+            // Limpa o estado
+            state.nextDepartureTimeMs = null;
+            state.nextDepartureTimeStr = null;
+            elements.lastDepartureTime.textContent = "--:--";
+            elements.nextDepartureTime.textContent = "--:--";
+            elements.timeRemaining.textContent = "Aguardando...";
+            highlightNextDeparture(false);
+            
+            if (currentSchedule.length === 0) return;
+
+            const departureTimesData = [];
+            
+            // Define a data base como HOJE (meia-noite)
+            const baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            // 1. Converte horários string em objetos com timestamp (TRATAMENTO DE MADRUGADA)
+            for (const time of currentSchedule) {
+                const parts = time.split(':');
+                const hours = parseInt(parts[0]);
+                const minutes = parseInt(parts[1]);
+
+                let departureDate = new Date(baseDate);
+                departureDate.setHours(hours, minutes, 0, 0);
+                
+                // CRUCIAL: Se o horário é na madrugada (antes das 4h, por exemplo) E o horário atual 
+                // é tarde (depois das 4h), esse horário pertence ao dia seguinte do calendário.
+                // Isso faz com que 23:55 venha antes de 00:30 na comparação de timestamps.
+                if (hours >= 0 && hours < 4 && now.getHours() > 4) {
+                    departureDate.setDate(departureDate.getDate() + 1);
+                }
+
+                departureTimesData.push({ timeStr: time, timeMs: departureDate.getTime() });
+            }
+            
+            // 2. Encontra a próxima e a última partida
+            let nextDepartureData = null;
+            let lastDepartureData = null;
+            
+            // Ordena por timestamp para garantir que o último passado seja o mais recente
+            departureTimesData.sort((a, b) => a.timeMs - b.timeMs);
+            
+            for (const departure of departureTimesData) {
+                // Próxima: O primeiro horário que ainda não passou (timestamp > agora)
+                if (departure.timeMs > nowMs && !nextDepartureData) {
+                    nextDepartureData = departure;
+                }
+                
+                // Última: O último horário que já passou (timestamp <= agora)
+                if (departure.timeMs <= nowMs) {
+                    lastDepartureData = departure;
+                }
+            }
+            
+            // 3. Atualiza Displays
+            
+            if (nextDepartureData) {
+                // CASO NORMAL: Há próxima partida hoje/madrugada.
+                state.nextDepartureTimeMs = nextDepartureData.timeMs;
+                state.nextDepartureTimeStr = nextDepartureData.timeStr;
+                elements.nextDepartureTime.textContent = nextDepartureData.timeStr;
+                
+                if (lastDepartureData) {
+                    elements.lastDepartureTime.textContent = lastDepartureData.timeStr;
+                } else {
+                    // Situação: Estamos antes do primeiro ônibus do dia (ex: 03:00, e o primeiro é 04:00).
+                    // A Última Partida é o último horário da lista estática (o último da madrugada anterior).
+                    elements.lastDepartureTime.textContent = currentSchedule[currentSchedule.length - 1];
+                }
+                
+            } else {
+                // FIM DA OPERAÇÃO DO DIA (não há mais partidas hoje/madrugada)
+                
+                if (currentSchedule.length > 0) {
+                    // Define o próximo como o primeiro do dia seguinte
+                    const firstDepartureTimeStr = currentSchedule[0];
+                    const parts = firstDepartureTimeStr.split(':');
+                    const hours = parseInt(parts[0]);
+                    const minutes = parseInt(parts[1]);
+
+                    // Cria um Date object para o primeiro horário do DIA SEGUINTE
+                    const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                    nextDay.setHours(hours, minutes, 0, 0);
+                    
+                    state.nextDepartureTimeMs = nextDay.getTime();
+                    state.nextDepartureTimeStr = firstDepartureTimeStr;
+                    elements.nextDepartureTime.textContent = firstDepartureTimeStr + " (Amanhã)";
+                    elements.timeRemaining.textContent = "Partidas encerradas hoje"; // Mensagem melhor
+                    
+                    // A Última Partida é o último que rodou.
+                    elements.lastDepartureTime.textContent = currentSchedule[currentSchedule.length - 1];
+                    
+                } else {
+                    // Sem horários definidos
+                    elements.nextDepartureTime.textContent = "Não há mais";
+                    elements.timeRemaining.textContent = "Partidas hoje";
+                }
+            }
+            
+            // Inicia ou continua a contagem regressiva por segundo
+            updateTimeRemainingDisplay(); 
+            highlightNextDeparture(doScroll); 
+        }
+
+
+        // --- Funções de Renderização e Interação ---
+
+        function renderSchedule(doScroll = false) {
+            const currentSchedule = data.getSchedule();
+            elements.scheduleGrid.innerHTML = '';
+            
+            if (currentSchedule.length === 0) {
+                elements.scheduleGrid.classList.add('hidden');
+                elements.noScheduleMessage.classList.remove('hidden');
+            } else {
+                elements.scheduleGrid.classList.remove('hidden');
+                elements.noScheduleMessage.classList.add('hidden');
+
+                currentSchedule.forEach(time => {
+                    const div = document.createElement('div');
+                    div.className = 'schedule-time-static';
+                    div.textContent = time;
+                    div.dataset.time = time;
+                    elements.scheduleGrid.appendChild(div);
+                });
+            }
+            
+            // Recalcula as partidas após renderizar a grade
+            calculateDepartures(doScroll);
+        }
+        
+        function updateUI(doScroll = false) {
+            // Atualiza o texto da Linha
+            const selectedLineObj = data.lines.find(l => l.id === state.line);
+            elements.selectedLine.textContent = selectedLineObj ? selectedLineObj.text : "Selecione a Linha";
+
+            // Atualiza o texto do Sentido
+            const currentLineSchedule = schedules[state.line];
+            if (currentLineSchedule && currentLineSchedule.directions[state.direction]) {
+                const fullDirectionText = currentLineSchedule.directions[state.direction];
+                // Mostra só o destino (ex: "TERMINAL PARELHEIROS")
+                const destination = fullDirectionText.split(' ').slice(1).join(' ');
+                elements.selectedDirection.textContent = destination.trim() || fullDirectionText;
+            } else {
+                 elements.selectedDirection.textContent = "Selecione o Sentido";
+            }
+            
+            // Atualiza o texto do Dia
+            elements.selectedDay.textContent = state.day;
+            elements.scheduleTitle.textContent = `HORÁRIOS (${state.day})`;
+            
+            // Renderiza a grade e chama calculateDepartures(doScroll)
+            renderSchedule(doScroll);
+        }
+
+        function renderModalOptions(type) {
+            elements.modalContent.innerHTML = '';
+            
+            let options = [];
+            let title = '';
+            let currentSelected = '';
+
+            if (type === 'line') {
+                options = data.lines.map(l => ({ value: l.id, text: l.text }));
+                title = 'Selecione a Linha';
+                currentSelected = state.line;
+            } else if (type === 'direction') {
+                const currentLine = schedules[state.line];
+                if (!currentLine) {
+                    elements.modalTitle.textContent = "Erro: Linha não carregada.";
+                    return; 
+                }
+                options = Object.keys(currentLine.directions).map(key => {
+                    const fullText = currentLine.directions[key];
+                    const destinationText = fullText.split(' ').slice(1).join(' ');
+                    
+                    return { 
+                        value: key, 
+                        text: destinationText.trim()
+                    };
+                });
+                title = 'Selecione o Sentido';
+                currentSelected = state.direction; 
+            } else if (type === 'day') {
+                options = data.days.map(d => ({ value: d, text: d }));
+                title = 'Selecione o Dia da Semana';
+                currentSelected = state.day;
+            }
+            
+            elements.modalTitle.textContent = title;
+            currentModalType = type;
+
+            options.forEach(option => {
+                const isSelected = option.value === currentSelected;
+                
+                const div = document.createElement('div');
+                div.className = `option-item flex justify-between items-center p-3 rounded-lg cursor-pointer transition duration-150 ease-in-out ${isSelected ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-100 text-gray-700'}`;
+                div.textContent = option.text;
+                div.dataset.value = option.value;
+                div.onclick = () => selectOption(option.value);
+
+                if (isSelected) {
+                    const checkIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    checkIcon.setAttribute("class", "h-5 w-5 ml-2 text-blue-600");
+                    checkIcon.setAttribute("viewBox", "0 0 20 20");
+                    checkIcon.setAttribute("fill", "currentColor");
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    path.setAttribute("fill-rule", "evenodd");
+                    path.setAttribute("d", "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z");
+                    path.setAttribute("clip-rule", "evenodd");
+                    checkIcon.appendChild(path);
+                    div.appendChild(checkIcon);
+                }
+                
+                elements.modalContent.appendChild(div);
+            });
+        }
+        
+        function openModal(type) {
+            renderModalOptions(type);
+            elements.overlay.classList.remove('hidden');
+            elements.modal.classList.remove('translate-y-full');
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function closeModal() {
+            elements.modal.classList.add('translate-y-full');
+            setTimeout(() => {
+                elements.overlay.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }, 300); 
+        }
+
+        function selectOption(value) {
+            let updated = false;
+            
+            if (currentModalType === 'line' && state.line !== value) {
+                state.line = value;
+                if (!schedules[value] || !schedules[value][state.direction]) {
+                    // Tenta reverter para IDA se o sentido atual não existir na nova linha
+                    state.direction = "IDA";
+                }
+                updated = true;
+            } else if (currentModalType === 'direction' && state.direction !== value) {
+                state.direction = value;
+                updated = true;
+            } else if (currentModalType === 'day' && state.day !== value) {
+                state.day = value;
+                updated = true;
+            }
+            
+            closeModal();
+            
+            // Se houve atualização, recarrega a UI, desabilitando a rolagem
+            if (updated) {
+                updateUI(false); 
+            }
+        }
+
+        // --- Inicialização e PWA (NOVO) ---
+        
+        window.onload = function() {
+            // 1. REGISTRO DO SERVICE WORKER (PWA)
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/service-worker.js')
+                        .then(registration => {
+                            console.log('Service Worker registrado com sucesso:', registration.scope);
+                        })
+                        .catch(error => {
+                            console.log('Falha no registro do Service Worker:', error);
+                        });
+                });
+            }
+
+            // 2. GERENCIAMENTO DA NOTIFICAÇÃO DE INSTALAÇÃO (PROMPT)
+            const installButton = document.getElementById('install-button');
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                // Previne que o navegador mostre o prompt automaticamente
+                e.preventDefault();
+                // Armazena o evento para que ele possa ser acionado depois
+                deferredPrompt = e;
+                // Exibe o botão de instalação customizado
+                installButton.style.display = 'block';
+            });
+
+            // Listener para o clique no botão customizado
+            if (installButton) {
+                installButton.addEventListener('click', () => {
+                    // Esconde o botão
+                    installButton.style.display = 'none';
+                    // Dispara o prompt de instalação nativo
+                    if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        // Aguarda a escolha do usuário
+                        deferredPrompt.userChoice.then((choiceResult) => {
+                            if (choiceResult.outcome === 'accepted') {
+                                console.log('Usuário aceitou a instalação do PWA');
+                            } else {
+                                console.log('Usuário recusou a instalação do PWA');
+                            }
+                            deferredPrompt = null;
+                        });
+                    }
+                });
+            }
+            // Fim do gerenciamento de PWA
+            
+            // 3. Define o dia inicial com base no relógio do dispositivo
+            setInitialDay();
+            
+            // 4. Configura os listeners dos cards de seleção
+            document.querySelectorAll('.selection-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    const type = e.currentTarget.dataset.type;
+                    openModal(type);
+                });
+            });
+
+            elements.overlay.addEventListener('click', closeModal);
+
+            // 5. Roda a primeira atualização para carregar o UI e calcular o primeiro horário
+            updateUI(false); 
+            
+            // 6. Loop principal de atualização em tempo real (a cada 1 segundo)
+            setInterval(updateTimeRemainingDisplay, 1000); 
+        };
+    </script>
+</body>
+</html>
