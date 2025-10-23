@@ -6,7 +6,6 @@
     <title>BusTime - Horários em Tempo Real</title>
     
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1d4ed8"/>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -60,25 +59,6 @@
             font-weight: 700 !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
             transform: scale(1.05);
-        }
-
-        /* NOVO: Estilo para o botão de instalação */
-        #install-button {
-            display: none; /* Inicia oculto, será exibido pelo JS */
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 40;
-            padding: 12px 20px;
-            background-color: #1d4ed8;
-            color: white;
-            font-weight: 600;
-            border-radius: 9999px;
-            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.4);
-            border: none;
-            cursor: pointer;
-            transition: opacity 0.3s ease;
         }
     </style>
 </head>
@@ -171,7 +151,6 @@
         </div>
     </div>
 
-    <button id="install-button">Instalar App BusTime</button>
 
     <script>
         // Variáveis globais para o estado do app
@@ -313,9 +292,6 @@
         };
         
         let currentModalType = '';
-        
-        // NOVO: VARIÁVEL PARA O PROMPT DE INSTALAÇÃO
-        let deferredPrompt;
 
 
         // --- Funções de Utilitário (Hora Real) ---
@@ -491,7 +467,7 @@
                 }
                 
             } else {
-                // FIM DA OPERAÇÃO DO DIA (não há mais partidas hoje/madrugada)
+                // **CORREÇÃO APLICADA AQUI:** Lógica robusta para o FIM DA OPERAÇÃO DO DIA.
                 
                 if (currentSchedule.length > 0) {
                     // Define o próximo como o primeiro do dia seguinte
@@ -679,60 +655,13 @@
             }
         }
 
-        // --- Inicialização e PWA (NOVO) ---
+        // --- Inicialização ---
         
         window.onload = function() {
-            // 1. REGISTRO DO SERVICE WORKER (PWA)
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('/service-worker.js')
-                        .then(registration => {
-                            console.log('Service Worker registrado com sucesso:', registration.scope);
-                        })
-                        .catch(error => {
-                            console.log('Falha no registro do Service Worker:', error);
-                        });
-                });
-            }
-
-            // 2. GERENCIAMENTO DA NOTIFICAÇÃO DE INSTALAÇÃO (PROMPT)
-            const installButton = document.getElementById('install-button');
-
-            window.addEventListener('beforeinstallprompt', (e) => {
-                // Previne que o navegador mostre o prompt automaticamente
-                e.preventDefault();
-                // Armazena o evento para que ele possa ser acionado depois
-                deferredPrompt = e;
-                // Exibe o botão de instalação customizado
-                installButton.style.display = 'block';
-            });
-
-            // Listener para o clique no botão customizado
-            if (installButton) {
-                installButton.addEventListener('click', () => {
-                    // Esconde o botão
-                    installButton.style.display = 'none';
-                    // Dispara o prompt de instalação nativo
-                    if (deferredPrompt) {
-                        deferredPrompt.prompt();
-                        // Aguarda a escolha do usuário
-                        deferredPrompt.userChoice.then((choiceResult) => {
-                            if (choiceResult.outcome === 'accepted') {
-                                console.log('Usuário aceitou a instalação do PWA');
-                            } else {
-                                console.log('Usuário recusou a instalação do PWA');
-                            }
-                            deferredPrompt = null;
-                        });
-                    }
-                });
-            }
-            // Fim do gerenciamento de PWA
-            
-            // 3. Define o dia inicial com base no relógio do dispositivo
+            // 1. Define o dia inicial com base no relógio do dispositivo
             setInitialDay();
             
-            // 4. Configura os listeners dos cards de seleção
+            // 2. Configura os listeners dos cards de seleção
             document.querySelectorAll('.selection-card').forEach(card => {
                 card.addEventListener('click', (e) => {
                     const type = e.currentTarget.dataset.type;
@@ -742,11 +671,22 @@
 
             elements.overlay.addEventListener('click', closeModal);
 
-            // 5. Roda a primeira atualização para carregar o UI e calcular o primeiro horário
-            updateUI(false); 
+            // 3. Roda a primeira atualização para carregar o UI e calcular o primeiro horário
+            updateUI(false); // <-- CORREÇÃO: Não força rolagem na inicialização
             
-            // 6. Loop principal de atualização em tempo real (a cada 1 segundo)
+            // 4. Loop principal de atualização em tempo real (a cada 1 segundo)
             setInterval(updateTimeRemainingDisplay, 1000); 
+            
+            // --- CORREÇÃO 2: Registro do Service Worker (necessário para o modo offline) ---
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registrado com sucesso:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Falha no registro do Service Worker:', error);
+                    });
+            }
         };
     </script>
 </body>
